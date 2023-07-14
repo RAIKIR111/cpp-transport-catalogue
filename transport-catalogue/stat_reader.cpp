@@ -14,6 +14,6 @@ StatReader::StatReader(vector<string>& raw_requests) : raw_data_base_(move(raw_r
     }
 }
 
-vector<pair<char, string_view>> StatReader::GetRequests() {
+std::vector<std::pair<char, std::string_view>> StatReader::ProccessRequests() {
     return requests_;
 }

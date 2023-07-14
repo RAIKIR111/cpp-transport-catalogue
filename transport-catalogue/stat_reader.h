@@ -7,11 +7,12 @@
 #include <string_view>
 
 namespace requests {
+
 class StatReader {
 public:
     StatReader(std::vector<std::string>& raw_requests);
 
-    std::vector<std::pair<char, std::string_view>> GetRequests();
+    std::vector<std::pair<char, std::string_view>> ProccessRequests();
 
 private:
     std::vector<std::pair<char, std::string_view>> requests_;

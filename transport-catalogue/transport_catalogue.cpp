@@ -14,6 +14,21 @@ TransportCatalogue::TransportCatalogue(istream& input) {
     }
     assert(input_reader_ptr_ == nullptr); // ASSERT
     input_reader_ptr_ = new data_base::InputReader(input_reader_vector);
+    auto ready_info = input_reader_ptr_->ProccessDataBase();
+    for (const auto& parsed_stop_info : get<0>(ready_info)) {
+        string_view main_stopname = get<0>(parsed_stop_info);
+        geo::Coordinates coordinates{get<1>(parsed_stop_info), get<2>(parsed_stop_info)};
+        AddStop(main_stopname, coordinates);
+        for (const auto& [stopname, distance] : get<3>(parsed_stop_info)) {
+            SetDistanceBetweenStops(main_stopname, stopname, distance);
+        }
+    }
+    for (const auto& parsed_bus_info : get<1>(ready_info)) {
+        string_view busname = get<0>(parsed_bus_info);
+        vector<string_view> route = get<1>(parsed_bus_info);
+        char sym = get<2>(parsed_bus_info);
+        AddBus(busname, route, sym);
+    }
 
     getline(input, line);
     lines_number = stoi(line);
@@ -24,76 +39,7 @@ TransportCatalogue::TransportCatalogue(istream& input) {
     }
     assert(stat_reader_ptr_ == nullptr); // ASSERT
     stat_reader_ptr_ = new requests::StatReader(stat_reader_vector);
-}
-
-void TransportCatalogue::ProccessDataBase() {
-    const data_base::DataBaseMap raw_data_base = input_reader_ptr_->GetDataBase();
-    if (raw_data_base.count('S')) {
-        for (const auto& item : raw_data_base.at('S')) {
-            auto it_two_dots = find(item.begin(), item.end(), ':');
-            string_view main_stop_name{&(*item.begin()), static_cast<string_view::size_type>(distance(item.begin(), it_two_dots))};
-            detail::DeleteEndSpaces(main_stop_name);
-            // stop name is ready
-
-            size_t first_digit_index = item.find_first_of("0123456789", distance(item.begin(), it_two_dots));
-            size_t dot_or_space_index = item.find_first_of(" ,", first_digit_index);
-            double stop_longitude = stod(string{&item[first_digit_index], &item[dot_or_space_index]});
-            // stop longitude is ready
-
-            first_digit_index = item.find_first_of("0123456789", dot_or_space_index);
-            double stop_latitude = stod(string{&item[first_digit_index], &item[item.size()]});
-            // stop latitude is ready
-
-            AddStop(main_stop_name, geo::Coordinates{stop_longitude, stop_latitude});
-
-            dot_or_space_index = item.find(',', first_digit_index);
-            if (dot_or_space_index != string::npos) {
-                auto number_of_dots = count(item.begin() + dot_or_space_index, item.end(), ',');
-                for (auto counter = 0; counter < number_of_dots; ++counter) {
-                    first_digit_index = item.find_first_of("0123456789", dot_or_space_index);
-                    dot_or_space_index = item.find('m', first_digit_index);
-                    int distance = stoi(string{&item[first_digit_index], &item[dot_or_space_index]});
-                    first_digit_index = item.find("to", dot_or_space_index);
-                    first_digit_index += 2;
-                    first_digit_index = item.find_first_not_of(' ', first_digit_index);
-                    dot_or_space_index = (counter != number_of_dots - 1) ? item.find(',', first_digit_index) : item.size();
-                    string_view stop_name{&item[first_digit_index], dot_or_space_index - first_digit_index};
-                    detail::DeleteEndSpaces(stop_name);
-                    // distance between stops is ready
-                    SetDistanceBetweenStops(main_stop_name, stop_name, distance);
-                }
-            }
-        }
-    }
-    if (raw_data_base.count('B')) {
-        for (const auto& item : raw_data_base.at('B')) {
-            auto it_last_digit = find(item.begin(), item.end(), ':');
-            string_view bus_name{&(*item.begin()), static_cast<string_view::size_type>(distance(item.begin(), it_last_digit))};
-            detail::DeleteEndSpaces(bus_name);
-            // bus name is ready
-
-            char sym = (find(item.begin(), item.end(), '>') != item.end()) ? '>' : '-';
-            vector<Stop*> bus_route;
-            for (auto counter = 0; counter < count(item.begin(), item.end(), sym) + 1; ++counter) {
-                auto it_1 = find_if(++it_last_digit, item.end(), [&sym](const auto& entry) {
-                    return entry != ' ' && entry != ':' && entry != sym;
-                });
-                auto it_2 = find(it_1, item.end(), sym);
-                string_view temp_main_stop_name{&(*it_1), static_cast<string_view::size_type>(distance(it_1, it_2))};
-                detail::DeleteEndSpaces(temp_main_stop_name);
-
-                it_last_digit = it_2;
-                bus_route.push_back(stopname_to_stop_.at(temp_main_stop_name));
-            }
-            // bus route is ready
-
-            AddBus(bus_name, bus_route, sym);
-        }
-    }
-}
-
-void TransportCatalogue::ProccessRequests() {
-    vector<pair<char, string_view>> requests = stat_reader_ptr_->GetRequests();
+    auto requests = stat_reader_ptr_->ProccessRequests();
     for (const auto& [type, request] : requests) {
         if (type == 'B') {
             if (!busname_to_bus_.count(request)) {
@@ -144,6 +90,11 @@ void TransportCatalogue::ProccessRequests() {
     }
 }
 
+TransportCatalogue::~TransportCatalogue() {
+    delete input_reader_ptr_;
+    delete stat_reader_ptr_;
+}
+
 void TransportCatalogue::AddStop(const string_view name, const geo::Coordinates& coordinates = geo::Coordinates{}) {
     if (stopname_to_stop_.count(name)) {
         Stop* stop = stopname_to_stop_.at(name);
@@ -159,17 +110,27 @@ TransportCatalogue::Stop* TransportCatalogue::FindStop(const string_view name) {
     return stopname_to_stop_.at(name);
 }
 
-void TransportCatalogue::AddBus(const string_view name, vector<Stop*>& bus_route, const char sym) {
+void TransportCatalogue::AddBus(const string_view name, const vector<string_view>& entry_route, const char sym) {
+    vector<Stop*> dst_route;
     if (sym == '-') {
-        auto bus_route_copy = bus_route;
-        bus_route_copy.pop_back();
-        reverse(bus_route_copy.begin(), bus_route_copy.end());
-        bus_route.insert(bus_route.end(), bus_route_copy.begin(), bus_route_copy.end());
+        dst_route.reserve(entry_route.size() * 2 - 1);
+        for (const auto& stopname : entry_route) {
+            dst_route.push_back(stopname_to_stop_.at(stopname));
+        }
+        for (int counter = entry_route.size() - 2; counter >= 0; counter--) {
+            dst_route.push_back(stopname_to_stop_.at(entry_route.at(counter)));
+        }
+    }
+    else {
+        dst_route.reserve(entry_route.size());
+        for (const auto& stopname : entry_route) {
+            dst_route.push_back(stopname_to_stop_.at(stopname));
+        }
     }
 
-    buses_.push_back(Bus{name, bus_route});
+    buses_.push_back(Bus{name, dst_route});
     busname_to_bus_[name] = &buses_.back();
-    for (const auto& stop : bus_route) {
+    for (const auto& stop : dst_route) {
         stop_to_buses_[stop].push_back(&buses_.back());
     }
 }

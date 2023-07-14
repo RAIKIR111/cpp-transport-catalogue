@@ -17,11 +17,8 @@ class TransportCatalogue {
 public:
     TransportCatalogue(std::istream& input);
 
-    void ProccessDataBase();
+    ~TransportCatalogue();
 
-    void ProccessRequests();
-
-private:
     struct Stop {
         std::string_view name;
         geo::Coordinates coordinates;
@@ -32,6 +29,19 @@ private:
         std::vector<Stop*> route;
     };
 
+    void AddStop(const std::string_view name, const geo::Coordinates& coordinates);
+
+    Stop* FindStop(const std::string_view name);
+
+    void AddBus(const std::string_view name, const std::vector<std::string_view>& entry_route, const char sym);
+
+    Bus* FindBus(const std::string_view name);
+
+    void SetDistanceBetweenStops(const std::string_view first_name, const std::string_view second_name, const int distance);
+
+    int GetDistanceBetweenStops(const std::string_view first_name, const std::string_view second_name);
+
+private:
     class StringViewHasher {
     public:
         size_t operator()(const std::string_view& stopname) const {
@@ -71,18 +81,6 @@ private:
 
     std::unordered_map<std::pair<Stop*, Stop*>, int, PairStopsHasher> stops_to_distance_;
     std::unordered_map<Stop*, std::vector<Bus*>, StopHasher> stop_to_buses_;
-
-    void AddStop(const std::string_view name, const geo::Coordinates& coordinates);
-
-    Stop* FindStop(const std::string_view name);
-
-    void AddBus(const std::string_view name, std::vector<Stop*>& route, const char sym);
-
-    Bus* FindBus(const std::string_view name);
-
-    void SetDistanceBetweenStops(const std::string_view first_name, const std::string_view second_name, const int distance);
-
-    int GetDistanceBetweenStops(const std::string_view first_name, const std::string_view second_name);
 };
 
 namespace detail {
