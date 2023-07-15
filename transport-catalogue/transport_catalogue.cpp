@@ -4,16 +4,8 @@ using namespace std;
 using namespace transport_catalogue;
 
 TransportCatalogue::TransportCatalogue(istream& input) {
-    string line;
-    getline(input, line);
-    size_t lines_number = stoi(line);
-    vector<string> input_reader_vector(lines_number);
-    for (auto count = 0; count < lines_number; ++count) {
-        getline(input, line);
-        input_reader_vector[count] = move(line);
-    }
     assert(input_reader_ptr_ == nullptr); // ASSERT
-    input_reader_ptr_ = new data_base::InputReader(input_reader_vector);
+    input_reader_ptr_ = new data_base::InputReader(input);
     auto ready_info = input_reader_ptr_->ProccessDataBase();
     for (const auto& parsed_stop_info : get<0>(ready_info)) {
         string_view main_stopname = get<0>(parsed_stop_info);
@@ -30,15 +22,8 @@ TransportCatalogue::TransportCatalogue(istream& input) {
         AddBus(busname, route, sym);
     }
 
-    getline(input, line);
-    lines_number = stoi(line);
-    vector<string> stat_reader_vector(lines_number);
-    for (auto count = 0; count < lines_number; ++count) {
-        getline(input, line);
-        stat_reader_vector[count] = move(line);
-    }
     assert(stat_reader_ptr_ == nullptr); // ASSERT
-    stat_reader_ptr_ = new requests::StatReader(stat_reader_vector);
+    stat_reader_ptr_ = new requests::StatReader(input);
     auto requests = stat_reader_ptr_->ProccessRequests();
     for (const auto& [type, request] : requests) {
         if (type == 'B') {

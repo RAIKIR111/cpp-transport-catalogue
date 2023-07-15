@@ -14,7 +14,7 @@ using ParsedNewBusInfo = std::tuple<std::string_view, std::vector<std::string_vi
 
 class InputReader {
 public:
-    InputReader(std::vector<std::string>& raw_data_base);
+    InputReader(std::istream& input);
 
     std::tuple<std::vector<ParsedNewStopInfo>, std::vector<ParsedNewBusInfo>> ProccessDataBase();
 

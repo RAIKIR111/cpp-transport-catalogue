@@ -3,7 +3,16 @@
 using namespace std;
 using namespace data_base;
 
-InputReader::InputReader(vector<string>& raw_data_base) : raw_data_(move(raw_data_base)) {
+InputReader::InputReader(istream& input) {
+    string line;
+    getline(input, line);
+    size_t lines_number = stoi(line);
+    raw_data_.reserve(lines_number);
+    for (auto count = 0; count < lines_number; ++count) {
+        getline(input, line);
+        raw_data_.push_back(move(line));
+    }
+
     for (const auto& item : raw_data_) {
         assert(item[0] == 'S' || item[0] == 'B'); //ASSERT
         auto it_first_not_space = find_if(find(item.begin(), item.end(), ' '), item.end(), [](const auto& entry) {

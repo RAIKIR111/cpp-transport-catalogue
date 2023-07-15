@@ -10,7 +10,7 @@ namespace requests {
 
 class StatReader {
 public:
-    StatReader(std::vector<std::string>& raw_requests);
+    StatReader(std::istream& input);
 
     std::vector<std::pair<char, std::string_view>> ProccessRequests();
 
