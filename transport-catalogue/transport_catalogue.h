@@ -31,17 +31,20 @@ public:
 
     void AddStop(const std::string_view name, const geo::Coordinates& coordinates);
 
-    Stop* FindStop(const std::string_view name);
+    Stop* FindStop(const std::string_view name) const;
 
     void AddBus(const std::string_view name, const std::vector<std::string_view>& entry_route, const char sym);
 
-    Bus* FindBus(const std::string_view name);
+    Bus* FindBus(const std::string_view name) const;
 
     void SetDistanceBetweenStops(const std::string_view first_name, const std::string_view second_name, const int distance);
 
-    int GetDistanceBetweenStops(const std::string_view first_name, const std::string_view second_name);
+    int GetDistanceBetweenStops(const std::string_view first_name, const std::string_view second_name) const;
 
-private:
+    data_base::InputReader* GetInputReaderPtr() const;
+
+    std::vector<Bus*> FindBusesCrossingStop(Stop* stop) const;
+
     class StringViewHasher {
     public:
         size_t operator()(const std::string_view& stopname) const {
@@ -70,6 +73,7 @@ private:
         std::hash<double> hasher_;
     };
 
+private:
     data_base::InputReader* input_reader_ptr_ = nullptr;
     requests::StatReader* stat_reader_ptr_ = nullptr;
 

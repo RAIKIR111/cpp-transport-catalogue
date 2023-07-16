@@ -1,4 +1,5 @@
 #include "input_reader.h"
+#include "transport_catalogue.h"
 
 using namespace std;
 using namespace data_base;
@@ -20,9 +21,26 @@ InputReader::InputReader(istream& input) {
         });
         data_base_[item[0]].push_back({&(*it_first_not_space), static_cast<string_view::size_type>(distance(it_first_not_space, item.end()))});
     }
+
+    getline(input, line);
+    lines_number = stoi(line);
+    raw_data_base_.reserve(lines_number);
+    for (auto count = 0; count < lines_number; ++count) {
+        getline(input, line);
+        raw_data_base_.push_back(move(line));
+    }
+
+    for (const auto& item : raw_data_base_) {
+        assert(item[0] == 'B' || item[0] == 'S'); //ASSERT
+        auto it_first_not_space = find_if(find(item.begin(), item.end(), ' '), item.end(), [](const auto& entry) {
+            return entry != ' ';
+        });
+        string_view temp_request = {&(*it_first_not_space), static_cast<string_view::size_type>(distance(it_first_not_space, item.end()))};
+        requests_.push_back({item[0], temp_request});
+    }
 }
 
-std::tuple<std::vector<ParsedNewStopInfo>, std::vector<ParsedNewBusInfo>> InputReader::ProccessDataBase() {
+std::tuple<std::vector<ParsedNewStopInfo>, std::vector<ParsedNewBusInfo>> InputReader::ProccessRawDataBase() const {
     const DataBaseMap& raw_data_base = data_base_;
     vector<ParsedNewStopInfo> parsed_new_stop_info_vec;
     vector<ParsedNewBusInfo> parsed_new_bus_info_vec;
@@ -92,6 +110,10 @@ std::tuple<std::vector<ParsedNewStopInfo>, std::vector<ParsedNewBusInfo>> InputR
         }
     }
     return make_tuple(parsed_new_stop_info_vec, parsed_new_bus_info_vec);
+}
+
+std::vector<std::pair<char, std::string_view>> InputReader::ProccessRawRequests() const {
+    return requests_;
 }
 
 void data_base::detail::DeleteEndSpaces(string_view& str) {

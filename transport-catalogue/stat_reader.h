@@ -6,16 +6,19 @@
 #include <vector>
 #include <string_view>
 
+namespace transport_catalogue {
+    class TransportCatalogue;
+}
+
 namespace requests {
 
 class StatReader {
 public:
-    StatReader(std::istream& input);
+    StatReader(transport_catalogue::TransportCatalogue* catalogue_obj);
 
-    std::vector<std::pair<char, std::string_view>> ProccessRequests();
+    void ProccessRequests() const;
 
 private:
-    std::vector<std::pair<char, std::string_view>> requests_;
-    std::vector<std::string> raw_data_base_;
+    transport_catalogue::TransportCatalogue* catalogue_obj_ = nullptr;
 };
 }
