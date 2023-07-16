@@ -3,13 +3,12 @@
 using namespace std;
 using namespace transport_catalogue;
 
-TransportCatalogue::TransportCatalogue(istream& input) : input_reader_ptr_(new data_base::InputReader(input)) {
-    stat_reader_ptr_ = new requests::StatReader(this);
+TransportCatalogue::TransportCatalogue() {
 }
 
-TransportCatalogue::~TransportCatalogue() {
-    delete input_reader_ptr_;
-    delete stat_reader_ptr_;
+void TransportCatalogue::InitializeTransportCatalogue(istream& input) {
+    data_base::InputReader* input_reader_ptr = new data_base::InputReader(input);
+    requests::StatReader* stat_reader_ptr = new requests::StatReader(this, input_reader_ptr);
 }
 
 void TransportCatalogue::AddStop(const string_view name, const geo::Coordinates& coordinates = geo::Coordinates{}) {
@@ -74,10 +73,6 @@ void TransportCatalogue::SetDistanceBetweenStops(const string_view first_name, c
 
 int TransportCatalogue::GetDistanceBetweenStops(const string_view first_name, const string_view second_name) const {
     return stops_to_distance_.at({stopname_to_stop_.at(first_name), stopname_to_stop_.at(second_name)});
-}
-
-data_base::InputReader* TransportCatalogue::GetInputReaderPtr() const {
-    return input_reader_ptr_;
 }
 
 std::vector<TransportCatalogue::Bus*> TransportCatalogue::FindBusesCrossingStop(Stop* stop) const {

@@ -15,9 +15,9 @@
 namespace transport_catalogue {
 class TransportCatalogue {
 public:
-    TransportCatalogue(std::istream& input);
+    TransportCatalogue();
 
-    ~TransportCatalogue();
+    void InitializeTransportCatalogue(std::istream& input); 
 
     struct Stop {
         std::string_view name;
@@ -40,8 +40,6 @@ public:
     void SetDistanceBetweenStops(const std::string_view first_name, const std::string_view second_name, const int distance);
 
     int GetDistanceBetweenStops(const std::string_view first_name, const std::string_view second_name) const;
-
-    data_base::InputReader* GetInputReaderPtr() const;
 
     std::vector<Bus*> FindBusesCrossingStop(Stop* stop) const;
 
@@ -74,9 +72,6 @@ public:
     };
 
 private:
-    data_base::InputReader* input_reader_ptr_ = nullptr;
-    requests::StatReader* stat_reader_ptr_ = nullptr;
-
     std::deque<Stop> stops_;
     std::deque<Bus> buses_;
 

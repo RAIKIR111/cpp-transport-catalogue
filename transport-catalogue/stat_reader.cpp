@@ -4,12 +4,12 @@
 using namespace std;
 using namespace requests;
 
-StatReader::StatReader(transport_catalogue::TransportCatalogue* catalogue_obj) : catalogue_obj_(catalogue_obj) {
-    ProccessRequests();
+StatReader::StatReader(transport_catalogue::TransportCatalogue* catalogue_obj, data_base::InputReader* input_reader) : catalogue_obj_(catalogue_obj), input_reader_(input_reader) {
+    ProccessRequests(cout);
 }
 
-void StatReader::ProccessRequests() const {
-    auto ready_info = catalogue_obj_->GetInputReaderPtr()->ProccessRawDataBase();
+void StatReader::ProccessRequests(std::ostream& output) const {
+    auto ready_info = input_reader_->ProccessRawDataBase();
     for (const auto& parsed_stop_info : get<0>(ready_info)) {
         string_view main_stopname = get<0>(parsed_stop_info);
         geo::Coordinates coordinates{get<1>(parsed_stop_info), get<2>(parsed_stop_info)};
@@ -25,11 +25,11 @@ void StatReader::ProccessRequests() const {
         catalogue_obj_->AddBus(busname, route, sym);
     }
 
-    auto requests = catalogue_obj_->GetInputReaderPtr()->ProccessRawRequests();
+    auto requests = input_reader_->ProccessRawRequests();
     for (const auto& [type, request] : requests) {
         if (type == 'B') {
             if (!catalogue_obj_->FindBus(request)) {
-                cout << "Bus "s << request << ": not found"s << endl;
+                output << "Bus "s << request << ": not found"s << endl;
                 continue;
             }
 
@@ -50,16 +50,16 @@ void StatReader::ProccessRequests() const {
             double curvature = double(route_length) / geo_length;
             // curvature is ready
 
-            cout << "Bus "s << bus_ptr->name << ": "s << bus_ptr->route.size() << " stops on route, "s << unique_stops.size() << " unique stops, "s << route_length << " route length, "s << curvature << " curvature"s << endl;
+            output << "Bus "s << bus_ptr->name << ": "s << bus_ptr->route.size() << " stops on route, "s << unique_stops.size() << " unique stops, "s << route_length << " route length, "s << curvature << " curvature"s << endl;
         }
         else if (type == 'S') {
             if (!catalogue_obj_->FindStop(request)) {
-                cout << "Stop " << request << ": not found" << endl;
+                output << "Stop " << request << ": not found" << endl;
                 continue;
             }
 
             if (!catalogue_obj_->FindBusesCrossingStop(catalogue_obj_->FindStop(request)).size()) {
-                cout << "Stop " << request << ": no buses" << endl;
+                output << "Stop " << request << ": no buses" << endl;
                 continue;
             }
             
@@ -67,11 +67,11 @@ void StatReader::ProccessRequests() const {
             for (const auto& item : catalogue_obj_->FindBusesCrossingStop(catalogue_obj_->FindStop(request))) {
                 temp_set_buses.insert(item->name);
             }
-            cout << "Stop " << request << ": buses";
+            output << "Stop " << request << ": buses";
             for (const auto& item : temp_set_buses) {
-                cout << " " << item;
+                output << " " << item;
             }
-            cout << endl;
+            output << endl;
         }
     }
 }
