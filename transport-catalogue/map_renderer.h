@@ -122,12 +122,12 @@ public:
     void SetLineWidth(double x);
     void SetStopRadius(double x);
     void SetBusLabelFontSize(int x);
-    void SetBusLabelOffset(std::vector<double> x);
+    void SetBusLabelOffset(const std::vector<double>& x);
     void SetStopLabelFontSize(int x);
-    void SetStopLabelOffset(std::vector<double> x);
+    void SetStopLabelOffset(const std::vector<double>& x);
     void SetUnderlayerColor(svg::Color x);
     void SetUnderlayerWidth(double x);
-    void SetColorPalette(std::vector<svg::Color> x);
+    void SetColorPalette(const std::vector<svg::Color>& x);
 
     const Settings* GetSettings() const;
 
