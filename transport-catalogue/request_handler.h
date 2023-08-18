@@ -4,6 +4,7 @@
 #include <map>
 
 #include "transport_catalogue.h"
+#include "map_renderer.h"
 
 /*
  * Здесь можно было бы разместить код обработчика запросов к базе, содержащего логику, которую не
@@ -35,24 +36,22 @@ public:
         int unique_stop_count;
     };
 
-    explicit RequestHandler(const transport_catalogue::TransportCatalogue& catalogue_ptr);
-
     // MapRenderer понадобится в следующей части итогового проекта
-    //RequestHandler(const TransportCatalogue& db, const renderer::MapRenderer& renderer);
+    RequestHandler(const transport_catalogue::TransportCatalogue& db, const map_renderer::MapRenderer& renderer);
 
     // Возвращает информацию о маршруте (запрос Bus)
     std::optional<BusStat> GetBusStat(const std::string_view& bus_name) const;
 
     // Возвращает маршруты, проходящие через
-    const std::unordered_set<BusPtr, transport_catalogue::TransportCatalogue::BusHasher>* GetBusesByStop(const std::string_view& stop_name) const;
+    const std::unordered_set<BusPtr, domain::BusHasher>* GetBusesByStop(const std::string_view& stop_name) const;
 
     // Этот метод будет нужен в следующей части итогового проекта
-    //svg::Document RenderMap() const;
+    svg::Document RenderMap() const;
 
 private:
     // RequestHandler использует агрегацию объектов "Транспортный Справочник" и "Визуализатор Карты"
     const transport_catalogue::TransportCatalogue& db_;
-    //const renderer::MapRenderer& renderer_;
+    const map_renderer::MapRenderer& renderer_;
 };
 
 } // namespace request_handler

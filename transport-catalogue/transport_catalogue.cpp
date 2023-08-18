@@ -49,7 +49,7 @@ void TransportCatalogue::AddBus(const string_view name, const vector<string_view
     for (const auto& stop : dst_route) {
         stop_to_buses_[stop].insert(&buses_.back());
     }
-    bus_to_isroundtrip_[&(buses_.back())] = is_roundtrip;
+    busname_to_isroundtrip_[buses_.back().name] = is_roundtrip;
 }
 
 Bus* TransportCatalogue::FindBus(const string_view name) const {
@@ -73,30 +73,24 @@ int TransportCatalogue::GetDistanceBetweenStops(const string_view first_name, co
     return stops_to_distance_.at({stopname_to_stop_.at(first_name), stopname_to_stop_.at(second_name)});
 }
 
-const std::unordered_set<Bus*, TransportCatalogue::BusHasher>& TransportCatalogue::FindBusesCrossingStop(Stop* stop) const {
+const std::unordered_set<Bus*, domain::BusHasher>& TransportCatalogue::FindBusesCrossingStop(Stop* stop) const {
     return stop_to_buses_.at(stop);
 }
 
-std::deque<domain::Stop> TransportCatalogue::GetStops() const {
+const std::deque<domain::Stop>& TransportCatalogue::GetStops() const {
     return stops_;
 }
 
-std::deque<domain::Bus> TransportCatalogue::GetBuses() const {
+const std::deque<domain::Bus>& TransportCatalogue::GetBuses() const {
     return buses_;
 }
 
-std::vector<domain::Stop*> TransportCatalogue::GetActiveStops() const {
-    std::vector<domain::Stop*> dst;
-    for (const auto& stop : stops_) {
-        if (stop_to_buses_.count(const_cast<domain::Stop*>(&stop)) && stop_to_buses_.at(const_cast<domain::Stop*>(&stop)).size() != 0) {
-            dst.push_back(const_cast<domain::Stop*>(&stop));
-        }
-    }
-    return dst;
+const std::unordered_map<domain::Stop*, std::unordered_set<domain::Bus*, domain::BusHasher>, domain::StopHasher>& TransportCatalogue::GetStopToBuses() const {
+    return stop_to_buses_;
 }
 
-bool TransportCatalogue::IsRoundTrip(const std::string_view bus_name) const {
-    return bus_to_isroundtrip_.at(FindBus(bus_name));
+const std::unordered_map<std::string_view, bool, domain::StringViewHasher>& TransportCatalogue::GetBusToIsroundtrip() const {
+    return busname_to_isroundtrip_;
 }
 
 void transport_catalogue::detail::DeleteEndSpaces(string_view& str) {

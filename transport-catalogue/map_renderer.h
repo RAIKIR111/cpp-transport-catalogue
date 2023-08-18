@@ -15,6 +15,8 @@
 #include <iostream>
 #include <optional>
 #include <vector>
+#include <set>
+#include <deque>
 
 namespace map_renderer {
 
@@ -96,6 +98,59 @@ struct Settings {
     svg::Color underlayer_color;
     double underlayer_width_ = 0.0;
     std::vector<svg::Color> color_palette;    
+};
+
+class MapRenderer {
+public:
+    struct CompareStopsPairsByName {
+        bool operator()(const std::pair<std::string_view, svg::Point> p1, const std::pair<std::string_view, svg::Point> p2) const {
+            return p1.first < p2.first;
+        }
+    };
+
+    struct CompareBusesByName {
+        bool operator()(const domain::Bus* bus1, const domain::Bus* bus2) const {
+            return bus1->name <= bus2->name;
+        }
+    };
+
+    MapRenderer();
+
+    void SetWidth(double x);
+    void SetHeight(double x);
+    void SetPadding(double x);
+    void SetLineWidth(double x);
+    void SetStopRadius(double x);
+    void SetBusLabelFontSize(int x);
+    void SetBusLabelOffset(std::vector<double> x);
+    void SetStopLabelFontSize(int x);
+    void SetStopLabelOffset(std::vector<double> x);
+    void SetUnderlayerColor(svg::Color x);
+    void SetUnderlayerWidth(double x);
+    void SetColorPalette(std::vector<svg::Color> x);
+
+    const Settings* GetSettings() const;
+
+    svg::Document Render(const std::deque<domain::Bus>& buses, const std::vector<domain::Stop*>& active_stops, const std::unordered_map<std::string_view, bool, domain::StringViewHasher>&) const;
+
+private:
+    Settings* settings_ = nullptr;
+
+    const svg::Polyline ConstructRouteLines(const domain::Bus* bus, const map_renderer::SphereProjector& projector, int color_counter, std::set<std::pair<std::string_view, svg::Point>, CompareStopsPairsByName>& stop_circles_pair_vec) const;
+
+    const svg::Text ConstructBusSubText(const std::string_view data, const svg::Point& point) const;
+
+    const svg::Text ConstructBusMainText(const std::string_view data, const svg::Point& point, int color_counter) const;
+
+    const svg::Text ConstructStopSubText(const std::string_view data, const svg::Point& point) const;
+
+    const svg::Text ConstructStopMainText(const std::string_view data, const svg::Point& point) const;
+
+    const svg::Circle ConstructCircle(const svg::Point& point) const;
+
+    const std::set<const domain::Bus*, CompareBusesByName> GetBusesInNameOrder(const std::deque<domain::Bus>& buses) const;
+
+    const std::vector<geo::Coordinates> GetCoordinatesOfActiveStops(const std::vector<domain::Stop*>& active_stops) const;
 };
 
 } // namespace map_renderer

@@ -26,17 +26,15 @@ public:
 
 private:
     transport_catalogue::TransportCatalogue catalogue_;
+    map_renderer::MapRenderer renderer_;
     const request_handler::RequestHandler* req_handler_ = nullptr;
     const json::Document* doc_ = nullptr;
-    map_renderer::Settings* settings_ = nullptr;
 
     void ProccessBaseRequests(const json::Node& base_requests);
 
     void ProccessStatRequests(const json::Node& stat_requests, std::ostream& output);
 
     void ProccessRenderSettings(const json::Node& render_settings);
-
-    void RenderAll(std::ostream& output);
 };
 
 } // namespace json_reader

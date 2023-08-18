@@ -29,4 +29,46 @@ struct Bus {
     std::vector<Stop*> route;
 };
 
+class StopHasher {
+public:
+    size_t operator()(const domain::Stop* stop) const {
+        return hasher_(stop->coordinates.lat) + hasher_(stop->coordinates.lng) * 47;
+    }
+private:
+    std::hash<double> hasher_;
+};
+
+class BusHasher {
+public:
+    size_t operator()(const domain::Bus* bus) const {
+        double dst = 0.0;
+        int power = 1;
+        for (const auto& item : bus->route) {
+            dst += (item->coordinates.lat + item->coordinates.lng) * pow(27, power++);
+        }
+        return hasher_(dst);
+    }
+private:
+    std::hash<double> hasher_;
+};
+
+class StringViewHasher {
+public:
+    size_t operator()(const std::string_view& stopname) const {
+        return hasher_(stopname);
+    }
+
+private:
+    std::hash<std::string_view> hasher_;
+};
+
+class PairStopsHasher {
+public:
+    size_t operator()(const std::pair<domain::Stop*, domain::Stop*> stops) const {
+        return hasher_(stops.first->name) + hasher_(stops.second->name) * 47;
+    }
+private:
+    std::hash<std::string_view> hasher_;
+};
+
 } // namespace domain
