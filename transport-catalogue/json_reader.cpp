@@ -1,4 +1,5 @@
 #include "json_reader.h"
+#include "json_builder.h"
 
 /*
  * Здесь можно разместить код наполнения транспортного справочника данными из JSON,
@@ -12,13 +13,13 @@ JsonReader::JsonReader(istream& input)
     : req_handler_(new request_handler::RequestHandler(catalogue_, renderer_))
     , doc_(new json::Document(json::Load(input))) {
 
-    assert(doc_->GetRoot().IsMap() == true);
+    assert(doc_->GetRoot().IsDict() == true);
 
-    ProccessBaseRequests(doc_->GetRoot().AsMap().at("base_requests"s));
+    ProccessBaseRequests(doc_->GetRoot().AsDict().at("base_requests"s));
 
-    ProccessRenderSettings(doc_->GetRoot().AsMap().at("render_settings"s));
+    ProccessRenderSettings(doc_->GetRoot().AsDict().at("render_settings"s));
 
-    ProccessStatRequests(doc_->GetRoot().AsMap().at("stat_requests"s), cout);
+    ProccessStatRequests(doc_->GetRoot().AsDict().at("stat_requests"s), cout);
 }
 
 void JsonReader::ProccessBaseRequests(const json::Node& base_requests) {
@@ -27,15 +28,15 @@ void JsonReader::ProccessBaseRequests(const json::Node& base_requests) {
     // filling transport catalogue
     vector<tuple<string_view, vector<string_view>, bool>> buses_requests; // bus name, stops, is roundtrip?
     for (const json::Node& node_request : base_requests.AsArray()) {
-        if (node_request.IsMap() == false) {
+        if (node_request.IsDict() == false) {
             return;
         }
-        const json::Dict& temp_dict = node_request.AsMap();
+        const json::Dict& temp_dict = node_request.AsDict();
         if (temp_dict.at("type"s) == "Stop"s) {
             catalogue_.AddStop(temp_dict.at("name"s).AsString(),
                 geo::Coordinates{temp_dict.at("latitude"s).AsDouble(), temp_dict.at("longitude"s).AsDouble()});
 
-            for (const auto& [another_stop_name, dis] : temp_dict.at("road_distances"s).AsMap()) {
+            for (const auto& [another_stop_name, dis] : temp_dict.at("road_distances"s).AsDict()) {
                 catalogue_.SetDistanceBetweenStops(temp_dict.at("name"s).AsString(), another_stop_name, dis.AsInt());
             }
         }
@@ -54,7 +55,7 @@ void JsonReader::ProccessBaseRequests(const json::Node& base_requests) {
 }
 
 void JsonReader::ProccessRenderSettings(const json::Node& render_settings) {
-    for (const auto& [setting_type, setting] : render_settings.AsMap()) {
+    for (const auto& [setting_type, setting] : render_settings.AsDict()) {
         if (setting_type == "width"s) {
             renderer_.SetWidth(setting.AsDouble());
         }
@@ -151,12 +152,14 @@ void JsonReader::ProccessRenderSettings(const json::Node& render_settings) {
 }
 
 void JsonReader::ProccessStatRequests(const json::Node& stat_requests, ostream& output) {
-    json::Array dst_array;
+    json::Builder builder{};
+    builder.StartArray();
+
     for (const auto& request : stat_requests.AsArray()) {
-        if (request.IsMap() == false) {
+        if (request.IsDict() == false) {
             return;
         }
-        const json::Dict& current_dict = request.AsMap();
+        const json::Dict& current_dict = request.AsDict();
         int id = 0;
         string_view type;
         string_view name;
@@ -173,11 +176,10 @@ void JsonReader::ProccessStatRequests(const json::Node& stat_requests, ostream& 
         }
         if (type == "Stop"sv) {
             if (req_handler_->GetBusesByStop(name) == nullptr) {
-                json::Dict temp_dict{{"error_message"s, "not found"s}, {"request_id"s, id}};
-                dst_array.push_back(temp_dict);
+                builder.StartDict().Key("error_message"s).Value("not found"s).Key("request_id"s).Value(id).EndDict();
             }
             else {
-                json::Array buses;
+                vector<string> buses;
                 const auto& buses_crossing_stop = req_handler_->GetBusesByStop(name);
 
                 if (buses_crossing_stop != nullptr) {
@@ -185,27 +187,25 @@ void JsonReader::ProccessStatRequests(const json::Node& stat_requests, ostream& 
                         buses.push_back(string(bus_ptr->name));
                     }     
                 }
-                sort(buses.begin(), buses.end(), [](const json::Node& lhs, const json::Node& rhs) {
-                    return (lhs.AsString() < rhs.AsString());
-                });
 
-                json::Dict temp_dict{{"buses"s, buses}, {"request_id"s, id}};
+                sort(buses.begin(), buses.end());
 
-                dst_array.push_back(temp_dict);
+                builder.StartDict().Key("buses"s).StartArray();
+                for (const auto& item : buses) {
+                    builder.Value(item);
+                }
+                builder.EndArray().Key("request_id"s).Value(id).EndDict();
             }
         }
         else if (type == "Bus"sv) {
             const auto& bus_stat = req_handler_->GetBusStat(name);
             if (!bus_stat.has_value()) {
-                json::Dict temp_dict{{"error_message"s, "not found"s}, {"request_id"s, id}};
-                dst_array.push_back(temp_dict);
+                builder.StartDict().Key("error_message"s).Value("not found"s).Key("request_id"s).Value(id).EndDict();
             }
             else {
-                json::Dict temp_dict{{"curvature"s, bus_stat.value().curvature}, {"request_id"s, id},
-                    {"route_length"s, bus_stat.value().route_length}, {"stop_count"s, bus_stat.value().stop_count},
-                    {"unique_stop_count"s, bus_stat.value().unique_stop_count}};
-
-                dst_array.push_back(temp_dict);
+                builder.StartDict().Key("curvature"s).Value(bus_stat.value().curvature).Key("request_id"s).Value(id)
+                .Key("route_length"s).Value(bus_stat.value().route_length).Key("stop_count"s).Value(bus_stat.value().stop_count)
+                .Key("unique_stop_count"s).Value(bus_stat.value().unique_stop_count).EndDict();
             }
         }
         else if (type == "Map"sv) {
@@ -229,13 +229,13 @@ void JsonReader::ProccessStatRequests(const json::Node& stat_requests, ostream& 
                 dst += line;
             }
 
-            json::Dict temp_dict{{"map"s, dst}, {"request_id"s, id}};
-
-            dst_array.push_back(temp_dict);
+            builder.StartDict().Key("map"s).Value(dst).Key("request_id"s).Value(id).EndDict();
         }
     }
 
-    json::Print(json::Document(json::Node(dst_array)), output);
+    builder.EndArray();
+
+    json::Print(json::Document(builder.Build()), output);
 }
 
 JsonReader::~JsonReader() {
