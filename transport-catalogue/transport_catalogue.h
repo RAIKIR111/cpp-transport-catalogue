@@ -48,6 +48,8 @@ private:
     std::unordered_map<domain::Stop*, std::unordered_set<domain::Bus*, domain::BusHasher>, domain::StopHasher> stop_to_buses_;
 
     std::unordered_map<std::string_view, bool, domain::StringViewHasher> busname_to_isroundtrip_;
+
+    std::unordered_map<std::string_view, std::set<std::string_view>> stopname_to_stopnames_;
 };
 
 namespace detail {

@@ -30,8 +30,13 @@ void TransportCatalogue::AddBus(const string_view name, const vector<string_view
     vector<Stop*> dst_route;
     if (is_roundtrip == false) {
         dst_route.reserve((entry_route.size() * 2) - 1);
-        for (const auto& stopname : entry_route) {
+        for (auto counter = 0; counter < entry_route.size(); ++counter) {
+            const string_view& stopname = entry_route.at(counter);
             dst_route.push_back(stopname_to_stop_.at(stopname));
+            if (counter != entry_route.size() - 1) {
+                stopname_to_stopnames_[stopname].insert(entry_route.at(counter + 1));
+                stopname_to_stopnames_[entry_route.at(counter + 1)].insert(entry_route.at(counter));
+            }
         }
         for (int counter = entry_route.size() - 2; counter >= 0; counter--) {
             dst_route.push_back(stopname_to_stop_.at(entry_route.at(counter)));
@@ -39,8 +44,12 @@ void TransportCatalogue::AddBus(const string_view name, const vector<string_view
     }
     else {
         dst_route.reserve(entry_route.size());
-        for (const auto& stopname : entry_route) {
+        for (auto counter = 0; counter < entry_route.size(); ++counter) {
+            const string_view& stopname = entry_route.at(counter);
             dst_route.push_back(stopname_to_stop_.at(stopname));
+            if (counter != entry_route.size() - 1) {
+                stopname_to_stopnames_[stopname].insert(entry_route.at(counter + 1));
+            }
         }
     }
 

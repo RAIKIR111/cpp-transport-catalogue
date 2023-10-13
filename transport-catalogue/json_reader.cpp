@@ -19,6 +19,8 @@ JsonReader::JsonReader(istream& input)
 
     ProccessRenderSettings(doc_->GetRoot().AsDict().at("render_settings"s));
 
+    ProccessRoutingSettings(doc_->GetRoot().AsDict().at("routing_settings"s));
+
     ProccessStatRequests(doc_->GetRoot().AsDict().at("stat_requests"s), cout);
 }
 
@@ -151,6 +153,17 @@ void JsonReader::ProccessRenderSettings(const json::Node& render_settings) {
     }
 }
 
+void JsonReader::ProccessRoutingSettings(const json::Node& routing_settings) {
+    for (const auto& [setting_type, setting] : routing_settings.AsDict()) {
+        if (setting_type == "bus_wait_time"s) {
+            transport_router_.SetBusWaitTime(setting.AsInt());
+        }
+        else if (setting_type == "bus_velocity"s) {
+            transport_router_.SetBusVelocity(setting.AsDouble());
+        }
+    }
+}
+
 void JsonReader::ProccessStatRequests(const json::Node& stat_requests, ostream& output) {
     json::Builder builder{};
     builder.StartArray();
@@ -163,6 +176,8 @@ void JsonReader::ProccessStatRequests(const json::Node& stat_requests, ostream& 
         int id = 0;
         string_view type;
         string_view name;
+        string_view from;
+        string_view to;
         for (const auto& item : current_dict) {
             if (item.first == "id"s) {
                 id = item.second.AsInt();
@@ -172,6 +187,12 @@ void JsonReader::ProccessStatRequests(const json::Node& stat_requests, ostream& 
             }
             else if (item.first == "name"s) {
                 name = item.second.AsString();
+            }
+            else if (item.first == "from"s) {
+                from = item.second.AsString();
+            }
+            else if (item.first == "to"s) {
+                to = item.second.AsString();
             }
         }
         if (type == "Stop"sv) {
@@ -209,9 +230,6 @@ void JsonReader::ProccessStatRequests(const json::Node& stat_requests, ostream& 
             }
         }
         else if (type == "Map"sv) {
-            // Передаем автобусы
-            // Ищем активные остановки и передаем их
-            // Передаем bus_to_isroundtrip_
             string dst;
             ostringstream oss;
             
@@ -231,11 +249,81 @@ void JsonReader::ProccessStatRequests(const json::Node& stat_requests, ostream& 
 
             builder.StartDict().Key("map"s).Value(dst).Key("request_id"s).Value(id).EndDict();
         }
+        else if (type == "Route"sv) {
+            if (router_ == nullptr) {
+                graph::DirectedWeightedGraph<double>* graph = new graph::DirectedWeightedGraph<double>(catalogue_.GetStops().size() * 2);
+                ConstructGraph(graph);
+
+                router_ = new graph::Router(*graph);
+            }
+            int vertex_1 = transport_router_.GetVertexByStopname(from);
+            int vertex_2 = transport_router_.GetVertexByStopname(to);
+            auto answer = router_->BuildRoute(vertex_1 * 2, vertex_2 * 2);
+            if (!answer.has_value()) {
+                builder.StartDict().Key("error_message"s).Value("not found"s).Key("request_id"s).Value(id).EndDict();
+            }
+            else {
+                builder.StartDict().Key("items"s).StartArray();
+                const std::vector<graph::EdgeId>& route_edges = answer.value().edges;
+                for (auto counter = 0; counter < route_edges.size(); ++counter) {
+                    const graph::Edge<double>& temp_edge = router_->GetGraph().GetEdge(route_edges.at(counter));
+                    const std::pair<std::string_view, int>& temp_edge_data = transport_router_.GetEdgeData(temp_edge);
+                    if (temp_edge_data.second == 0) {
+                        builder.StartDict().Key("stop_name"s).Value(string(temp_edge_data.first)).Key("time"s).Value(temp_edge.weight);
+                        builder.Key("type"s).Value("Wait").EndDict();
+                    }
+                    else {
+                        builder.StartDict().Key("bus"s).Value(string(temp_edge_data.first)).Key("span_count"s).Value(temp_edge_data.second);
+                        builder.Key("time"s).Value(temp_edge.weight).Key("type"s).Value("Bus"s).EndDict();
+                    }
+                }
+                builder.EndArray();
+                builder.Key("request_id"s).Value(id).Key("total_time"s).Value(answer.value().weight);
+                builder.EndDict();
+            }
+
+        }
     }
 
     builder.EndArray();
 
     json::Print(json::Document(builder.Build()), output);
+}
+
+void JsonReader::ConstructGraph(graph::DirectedWeightedGraph<double>* graph) {
+    const std::deque<domain::Stop>& stops = catalogue_.GetStops();
+    const auto& wait_time = transport_router_.GetBusWaitTime();
+    for (auto counter = 0; counter < stops.size(); ++counter) {
+        graph::Edge<double> temp_edge(static_cast<graph::VertexId>(counter * 2), static_cast<graph::VertexId>(counter * 2 + 1), double(wait_time));
+        graph->AddEdge(temp_edge);
+        transport_router_.UpdStopnameToVertex(stops.at(counter).name, counter);
+        transport_router_.UpdEdgesData(temp_edge, stops.at(counter).name, 0);
+    }
+
+    for (const auto& bus : catalogue_.GetBuses()) {
+        if (catalogue_.GetBusToIsroundtrip().at(bus.name) == true) {
+            AddEdgesToGraphCycle(0, bus.route.size() - 1, bus, graph);
+        }
+        else {
+            AddEdgesToGraphCycle(0, bus.route.size() / 2 + 1, bus, graph);
+            AddEdgesToGraphCycle(bus.route.size() / 2, bus.route.size(), bus, graph);
+        }
+    }
+}
+
+void JsonReader::AddEdgesToGraphCycle(int counter, int till_counter, const domain::Bus& bus, graph::DirectedWeightedGraph<double>* graph) {
+    for (auto main_counter = counter; main_counter < till_counter; ++main_counter) {
+        int main_vertex = transport_router_.GetVertexByStopname(bus.route.at(main_counter)->name);
+        double dist = 0;
+        for (auto counter = main_counter + 1; counter < bus.route.size(); ++counter) {
+            dist += catalogue_.GetDistanceBetweenStops(bus.route.at(counter - 1)->name, bus.route.at(counter)->name);
+            int temp_vertex = transport_router_.GetVertexByStopname(bus.route.at(counter)->name);
+            const double travel_time = double(dist) / (transport_router_.GetBusVelocity() * 1000.0 / 60.0);
+            graph::Edge<double> temp_edge(static_cast<graph::VertexId>(main_vertex * 2 + 1), static_cast<graph::VertexId>(temp_vertex * 2), travel_time);
+            graph->AddEdge(temp_edge);
+            transport_router_.UpdEdgesData(temp_edge, bus.name, counter - main_counter);
+        }
+    }
 }
 
 JsonReader::~JsonReader() {
@@ -244,5 +332,8 @@ JsonReader::~JsonReader() {
     }
     if (req_handler_) {
         delete req_handler_;
+    }
+    if (router_) {
+        delete router_;
     }
 }
